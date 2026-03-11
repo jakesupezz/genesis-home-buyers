@@ -3,38 +3,53 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { 
-  Home, 
-  Phone, 
-  CheckCircle, 
-  BadgeCheck, 
-  Star, 
-  ShieldCheck, 
-  CircleHelp, 
-  Banknote, 
-  CalendarCheck, 
-  AlertTriangle, 
-  FileText, 
-  UserMinus, 
-  HeartOff, 
-  Wrench, 
-  Rocket, 
-  ChevronDown, 
-  MapPin, 
-  Mail, 
-  Globe, 
+import React, { useState, useEffect } from 'react';
+import {
+  Home,
+  Phone,
+  CheckCircle,
+  BadgeCheck,
+  Star,
+  ShieldCheck,
+  CircleHelp,
+  Banknote,
+  CalendarCheck,
+  AlertTriangle,
+  FileText,
+  UserMinus,
+  HeartOff,
+  Wrench,
+  Rocket,
+  ChevronDown,
+  MapPin,
+  Mail,
+  Globe,
   ThumbsUp,
   Menu,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { supabase } from './supabase/client';
+import { client as sanityClient } from './lib/sanity/client';
 
-export default function App() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
-
-  const faqs = [
+// Default content fallback
+const DEFAULT_CONTENT = {
+  title: "Sell Your Jacksonville or Pensacola House Fast For Cash",
+  heroDescription: "We buy houses in any condition with no commissions. Work with a local Florida team you can trust. No repairs, no cleaning, no hassle.",
+  heroCheckpoints: [
+    'Any condition - We buy as-is',
+    'Zero commissions or closing costs',
+    'Local Florida investment experts'
+  ],
+  howItWorksTitle: "How To Sell Your Florida House Fast",
+  howItWorksDesc: "Our process is simple, transparent, and designed to get you the most cash in the shortest time.",
+  howItWorksSteps: [
+    { icon: CircleHelp, title: '1. Tell Us About It', desc: "Submit your property info online or call us. We'll research the property and nearby comps immediately." },
+    { icon: Banknote, title: '2. Get Your Offer', desc: "We'll provide a fair, no-obligation cash offer within 24 hours. No pressure, no hidden fees." },
+    { icon: CalendarCheck, title: '3. Choose Closing Date', desc: "If you accept, we close at a local title company as fast as 7 days or on your timeline." }
+  ],
+  faqs: [
     {
       question: "How quickly can you close?",
       answer: "We can close in as little as 7 days, or we can work around your specific schedule. We move as fast or as slow as you need."
@@ -55,7 +70,72 @@ export default function App() {
       question: "Is there an obligation when I submit my info?",
       answer: "Absolutely zero obligation. We'll give you an offer, and it's 100% up to you whether you want to move forward."
     }
-  ];
+  ],
+  contact: {
+    phone: "(904) 555-0123",
+    email: "offers@genesishomebuyers.com",
+    address: "123 Downtown Ave, Suite 400, Jacksonville, FL 32202"
+  }
+};
+
+export default function App() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [content, setContent] = useState(DEFAULT_CONTENT);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  // Lead Form State
+  const [formData, setFormData] = useState({
+    full_name: '',
+    property_address: '',
+    phone_number: '',
+    timeline: 'ASAP'
+  });
+
+  // Fetch dynamic content from Sanity
+  useEffect(() => {
+    const fetchContent = async () => {
+      try {
+        const query = `*[_type == "landingPage"][0]`;
+        const data = await sanityClient.fetch(query);
+        if (data) {
+          setContent({
+            ...DEFAULT_CONTENT,
+            title: data.title || DEFAULT_CONTENT.title,
+            heroDescription: data.heroDescription || DEFAULT_CONTENT.heroDescription,
+            heroCheckpoints: data.heroCheckpoints || DEFAULT_CONTENT.heroCheckpoints,
+            faqs: data.faqs || DEFAULT_CONTENT.faqs,
+            contact: data.contactInfo || DEFAULT_CONTENT.contact
+          });
+        }
+      } catch (error) {
+        console.error("Sanity fetch error:", error);
+      }
+    };
+    fetchContent();
+  }, []);
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setSubmitStatus('idle');
+
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .insert([formData]);
+
+      if (error) throw error;
+      setSubmitStatus('success');
+      setFormData({ full_name: '', property_address: '', phone_number: '', timeline: 'ASAP' });
+    } catch (error) {
+      console.error("Supabase submission error:", error);
+      setSubmitStatus('error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen">
@@ -71,7 +151,7 @@ export default function App() {
                 Genesis <span className="text-slate-500 font-light">Home Buyers</span>
               </h1>
             </div>
-            
+
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-8">
               {['How It Works', 'About', 'Reviews', 'FAQ', 'Contact'].map((item) => (
@@ -82,11 +162,11 @@ export default function App() {
             </nav>
 
             <div className="flex items-center gap-3">
-              <button className="bg-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-primary/90 transition-all shadow-md">
+              <a href={`tel:${content.contact.phone.replace(/\D/g, '')}`} className="bg-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-primary/90 transition-all shadow-md">
                 <Phone className="w-4 h-4" />
-                <span>Call Now</span>
-              </button>
-              <button 
+                <span>{content.contact.phone}</span>
+              </a>
+              <button
                 className="md:hidden text-slate-700"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
               >
@@ -99,7 +179,7 @@ export default function App() {
         {/* Mobile Nav */}
         <AnimatePresence>
           {isMenuOpen && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
@@ -107,9 +187,9 @@ export default function App() {
             >
               <div className="px-4 py-6 space-y-4">
                 {['How It Works', 'About', 'Reviews', 'FAQ', 'Contact'].map((item) => (
-                  <a 
-                    key={item} 
-                    href={`#${item.toLowerCase().replace(/\s+/g, '-')}`} 
+                  <a
+                    key={item}
+                    href={`#${item.toLowerCase().replace(/\s+/g, '-')}`}
                     className="block text-base font-semibold text-slate-700"
                     onClick={() => setIsMenuOpen(false)}
                   >
@@ -128,24 +208,20 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Hero Content */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6 }}
               className="text-white"
             >
               <h2 className="text-4xl md:text-5xl lg:text-6xl font-black leading-tight mb-6">
-                Sell Your Jacksonville or Pensacola House <span className="text-accent-green">Fast For Cash</span>
+                {content.title}
               </h2>
               <p className="text-xl text-slate-200 mb-8 max-w-xl">
-                We buy houses in any condition with no commissions. Work with a local Florida team you can trust. No repairs, no cleaning, no hassle.
+                {content.heroDescription}
               </p>
               <div className="space-y-4 mb-10">
-                {[
-                  'Any condition - We buy as-is',
-                  'Zero commissions or closing costs',
-                  'Local Florida investment experts'
-                ].map((text, i) => (
+                {content.heroCheckpoints.map((text, i) => (
                   <div key={i} className="flex items-center gap-3">
                     <CheckCircle className="w-6 h-6 text-accent-green bg-white/10 p-1 rounded-full" />
                     <span className="text-lg font-medium">{text}</span>
@@ -155,7 +231,7 @@ export default function App() {
             </motion.div>
 
             {/* Lead Form Card */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
@@ -163,37 +239,79 @@ export default function App() {
             >
               <h3 className="text-2xl font-bold text-primary mb-2">Get Your Free Cash Offer</h3>
               <p className="text-slate-500 mb-6 text-sm">Fill out the form below and we'll contact you within 24 hours.</p>
-              <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Full Name</label>
-                  <input className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-primary focus:ring-primary outline-none" placeholder="John Doe" type="text" />
+
+              {submitStatus === 'success' ? (
+                <div className="text-center py-8">
+                  <div className="bg-green-100 text-green-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="w-10 h-10" />
+                  </div>
+                  <h4 className="text-xl font-bold mb-2">Request Received!</h4>
+                  <p className="text-slate-500">We will call you shortly to discuss your offer.</p>
+                  <button onClick={() => setSubmitStatus('idle')} className="mt-6 text-primary font-bold underline">Send another request</button>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Property Address</label>
-                  <input className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-primary focus:ring-primary outline-none" placeholder="123 Florida St, Jacksonville" type="text" />
-                </div>
-                <div className="grid md:grid-cols-2 gap-4">
+              ) : (
+                <form className="space-y-4" onSubmit={handleFormSubmit}>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Phone Number</label>
-                    <input className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-primary focus:ring-primary outline-none" placeholder="(904) 555-0123" type="tel" />
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Full Name</label>
+                    <input
+                      required
+                      className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-primary focus:ring-primary outline-none"
+                      placeholder="John Doe"
+                      type="text"
+                      value={formData.full_name}
+                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Timeline</label>
-                    <select className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-primary focus:ring-primary outline-none text-slate-600">
-                      <option>ASAP</option>
-                      <option>Within 30 days</option>
-                      <option>1-3 months</option>
-                      <option>Just curious</option>
-                    </select>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Property Address</label>
+                    <input
+                      required
+                      className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-primary focus:ring-primary outline-none"
+                      placeholder="123 Florida St, Jacksonville"
+                      type="text"
+                      value={formData.property_address}
+                      onChange={(e) => setFormData({ ...formData, property_address: e.target.value })}
+                    />
                   </div>
-                </div>
-                <p className="text-[10px] text-slate-400 leading-tight">
-                  By clicking below, you agree to receive SMS/calls from Genesis Home Buyers. Standard rates may apply. Your information is safe with us.
-                </p>
-                <button className="w-full bg-accent-green hover:bg-green-600 text-white font-black text-lg py-4 rounded-lg shadow-lg shadow-green-200 transition-all transform hover:scale-[1.01]" type="submit">
-                  GET MY CASH OFFER
-                </button>
-              </form>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Phone Number</label>
+                      <input
+                        required
+                        className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-primary focus:ring-primary outline-none"
+                        placeholder="(904) 555-0123"
+                        type="tel"
+                        value={formData.phone_number}
+                        onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Timeline</label>
+                      <select
+                        className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-primary focus:ring-primary outline-none text-slate-600"
+                        value={formData.timeline}
+                        onChange={(e) => setFormData({ ...formData, timeline: e.target.value })}
+                      >
+                        <option>ASAP</option>
+                        <option>Within 30 days</option>
+                        <option>1-3 months</option>
+                        <option>Just curious</option>
+                      </select>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-tight">
+                    By clicking below, you agree to receive SMS/calls from Genesis Home Buyers. Standard rates may apply. Your information is safe with us.
+                  </p>
+                  <button
+                    disabled={isSubmitting}
+                    className="w-full bg-accent-green hover:bg-green-600 disabled:bg-slate-300 text-white font-black text-lg py-4 rounded-lg shadow-lg shadow-green-200 transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2"
+                    type="submit"
+                  >
+                    {isSubmitting ? <Loader2 className="animate-spin" /> : "GET MY CASH OFFER"}
+                  </button>
+                  {submitStatus === 'error' && <p className="text-red-500 text-xs text-center mt-2">Error submitting form. Please call us directly.</p>}
+                </form>
+              )}
             </motion.div>
           </div>
         </div>
@@ -221,18 +339,12 @@ export default function App() {
       {/* How It Works */}
       <section id="how-it-works" className="py-20 bg-background-light">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-extrabold text-primary mb-4">How To Sell Your Florida House Fast</h2>
-          <p className="text-slate-600 mb-16 max-w-2xl mx-auto text-lg">Our process is simple, transparent, and designed to get you the most cash in the shortest time.</p>
+          <h2 className="text-3xl md:text-4xl font-extrabold text-primary mb-4">{content.howItWorksTitle}</h2>
+          <p className="text-slate-600 mb-16 max-w-2xl mx-auto text-lg">{content.howItWorksDesc}</p>
           <div className="grid md:grid-cols-3 gap-12 relative">
-            {/* Connecting lines (desktop only) */}
             <div className="hidden md:block absolute top-1/4 left-1/3 right-1/3 h-0.5 bg-slate-200"></div>
-            
-            {[
-              { icon: CircleHelp, title: '1. Tell Us About It', desc: "Submit your property info online or call us. We'll research the property and nearby comps immediately." },
-              { icon: Banknote, title: '2. Get Your Offer', desc: "We'll provide a fair, no-obligation cash offer within 24 hours. No pressure, no hidden fees." },
-              { icon: CalendarCheck, title: '3. Choose Closing Date', desc: "If you accept, we close at a local title company as fast as 7 days or on your timeline." }
-            ].map((step, i) => (
-              <motion.div 
+            {content.howItWorksSteps.map((step, i) => (
+              <motion.div
                 key={i}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -241,7 +353,8 @@ export default function App() {
                 className="relative z-10"
               >
                 <div className="w-20 h-20 bg-white shadow-xl rounded-full flex items-center justify-center mx-auto mb-6 text-primary border-4 border-primary/5">
-                  <step.icon className="w-10 h-10" />
+                  {/* In a real app we'd map string names to components, keeping it simple here */}
+                  <Banknote className="w-10 h-10" />
                 </div>
                 <h3 className="text-xl font-bold mb-3 text-slate-800">{step.title}</h3>
                 <p className="text-slate-500">{step.desc}</p>
@@ -303,7 +416,7 @@ export default function App() {
               { icon: Wrench, title: 'Extensive Damage', desc: 'Fire damage, mold, or roof issues? We love projects and buy 100% as-is.' },
               { icon: Rocket, title: 'Relocating Fast', desc: 'Got a new job or need to move quickly? Get cash in hand in just days.' }
             ].map((item, i) => (
-              <motion.div 
+              <motion.div
                 key={i}
                 whileHover={{ y: -5 }}
                 className="bg-white p-8 rounded-xl shadow-md border border-slate-100 hover:border-primary transition-colors group"
@@ -350,9 +463,9 @@ export default function App() {
         <div className="max-w-3xl mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-extrabold text-center text-primary mb-12">Frequently Asked Questions</h2>
           <div className="space-y-4">
-            {faqs.map((faq, i) => (
+            {content.faqs.map((faq, i) => (
               <div key={i} className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-                <button 
+                <button
                   className="w-full p-6 text-left font-bold text-slate-800 flex justify-between items-center hover:bg-slate-50 transition-colors"
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                 >
@@ -361,7 +474,7 @@ export default function App() {
                 </button>
                 <AnimatePresence>
                   {openFaq === i && (
-                    <motion.div 
+                    <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
@@ -391,9 +504,9 @@ export default function App() {
             <button className="bg-accent-green hover:bg-green-600 text-white px-10 py-5 rounded-lg font-black text-xl shadow-2xl transition-all transform hover:-translate-y-1">
               GET MY CASH OFFER
             </button>
-            <button className="bg-white/10 hover:bg-white/20 text-white px-10 py-5 rounded-lg font-black text-xl border border-white/30 backdrop-blur-sm transition-all">
-              CALL (904) 555-0123
-            </button>
+            <a href={`tel:${content.contact.phone.replace(/\D/g, '')}`} className="bg-white/10 hover:bg-white/20 text-white px-10 py-5 rounded-lg font-black text-xl border border-white/30 backdrop-blur-sm transition-all text-center">
+              CALL {content.contact.phone}
+            </a>
           </div>
         </div>
       </section>
@@ -428,15 +541,15 @@ export default function App() {
               <ul className="space-y-4 text-sm">
                 <li className="flex items-start gap-3">
                   <MapPin className="w-4 h-4 mt-0.5" />
-                  <span>123 Downtown Ave, Suite 400<br />Jacksonville, FL 32202</span>
+                  <span>{content.contact.address}</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <Phone className="w-4 h-4" />
-                  <span>(904) 555-0123</span>
+                  <span>{content.contact.phone}</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <Mail className="w-4 h-4" />
-                  <span>offers@genesishomebuyers.com</span>
+                  <span>{content.contact.email}</span>
                 </li>
               </ul>
             </div>
